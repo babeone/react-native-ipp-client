@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
-import { multiply } from 'react-native-ipp-client';
+import ipp from 'react-native-ipp-client';
 
 export default function App() {
-  const [result, setResult] = useState<number | undefined>();
 
-  useEffect(() => {
-    multiply(3, 7).then(setResult);
-  }, []);
+  const getAttributes = async () => {
+    try {
+      const printerUrl = 'ipp://192.168.182.208';
+      const attributes = await ipp.getPrinterAttributes(printerUrl);
+      console.log(attributes);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   return (
     <View style={styles.container}>
-      <Text>Result: {result}</Text>
+      <Button title="Get Attributes" onPress={() => getAttributes()} />
     </View>
   );
 }
