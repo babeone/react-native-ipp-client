@@ -1,9 +1,12 @@
 package com.ippclient
 
+import android.util.Log
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.WritableMap
 import de.gmuth.ipp.client.IppPrinter
 import de.gmuth.ipp.client.IppClient
 import de.gmuth.ipp.client.IppTemplateAttributes.documentFormat
@@ -26,6 +29,7 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     @ReactMethod
     fun getPrinterAttributes(printerUrl: String, promise: Promise) {
         try {
+          Log.d("INFO", "RECUPER ATTRIBUTI STAMPANTE")
           val ippPrinter = IppPrinter(URI.create(printerUrl))
 
           // Retrieve printer attributes
@@ -38,14 +42,25 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
           }.toMap()
 
           // Combine attributes and markers into a single map
-          val result = mutableMapOf<String, Any>()
-          result["attributes"] = attributesMap
-          result["markers"] = markers
+          val result = Arguments.createMap()
+          result.putMap("attributes", convertMapToWritableMap(attributesMap))
+          result.putMap("markers", convertMapToWritableMap(markers))
 
+          // Resolve the promise with the result map
           promise.resolve(result)
+
         } catch (e: Exception) {
             promise.reject("Error", e)
         }
+
+    }
+
+    private fun convertMapToWritableMap(map: Map<String, String>): WritableMap {
+      val writableMap = Arguments.createMap()
+      for ((key, value) in map) {
+        writableMap.putString(key, value)
+      }
+      return writableMap
     }
 
     @ReactMethod
@@ -60,42 +75,62 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
         }
     }
 
-    @ReactMethod
-    fun printJob(printerUrl: String, jobName: String, document: String, promise: Promise) {
-      var tempFile: File? = null
-      try {
-            val ippClient = IppClient()
-            val printer = IppPrinter(URI.create(printerUrl))
+  @ReactMethod
+  fun printJob(printerUrl: String, jobName: String, document: String, promise: Promise) {
+    var tempFile: File? = null
+    try {
+      Log.d("INFO", "Starting print job for document: $document")
+      val ippClient = IppClient()
+      val printer = IppPrinter(URI.create(printerUrl))
 
-            // Download the image from the URL
-            val url = URL(document)
-            val connection: HttpURLConnection = url.openConnection() as HttpURLConnection
-            connection.doInput = true
-            connection.connect()
+      // Retrieve printer attributes
+      val attributes = printer.attributes
+      val documentFormatsSupported = attributes.getValues("document-format-supported") as List<String>
 
-            val inputStream = connection.inputStream
-            tempFile = File.createTempFile("tempImage", ".jpeg")
-            val outputStream = FileOutputStream(tempFile)
-            inputStream.copyTo(outputStream)
-            outputStream.close()
-            inputStream.close()
+      // Download the image from the URL
+      val url = URL(document)
+      val connection: HttpURLConnection = url.openConnection() as HttpURLConnection
+      connection.doInput = true
+      connection.connect()
 
+      Log.d("INFO", "Connected to URL: $document")
+      val inputStream = connection.inputStream
+      tempFile = File.createTempFile("tempImage", ".jpeg")
+      val outputStream = FileOutputStream(tempFile)
+      inputStream.copyTo(outputStream)
+      outputStream.close()
+      inputStream.close()
 
-            //val width = 1016 // 101.6 mm in hundredths of a millimeter
-            //val height = 2540 // 254 mm in hundredths of a millimeter
+      Log.d("INFO", "Downloaded document to temp file: ${tempFile.absolutePath}")
 
-            val job = printer.printJob(
-                tempFile,
-                jobName(printerUrl),
-                documentFormat("jpeg"),
-            )
-            promise.resolve(job.toString())
-        } catch (e: Exception) {
-            promise.reject("Error", e)
-        } finally {
-            tempFile?.delete()
-        }
+      // Verify document format
+      val mimeType = "image/jpeg" // Assume the MIME type based on the file extension
+      if (!supportsDocumentFormat(documentFormatsSupported, mimeType)) {
+        Log.d("INFO", "Printer does not support format: $mimeType")
+        promise.reject("Error", "Printer does not support format: $mimeType")
+        return
+      }
+
+      // Print the job
+      val job = printer.printJob(
+        tempFile,
+        jobName(jobName),
+        documentFormat(mimeType),
+      )
+      promise.resolve(job.toString())
+    } catch (e: Exception) {
+      Log.e("ERROR", "Failed to print job: ${e.message}", e)
+      promise.reject("Error", e)
+    } finally {
+      tempFile?.delete()
+      Log.d("INFO", "Deleted temp file: ${tempFile?.absolutePath}")
     }
+  }
+
+  private fun supportsDocumentFormat(supportedFormats: List<String>, format: String): Boolean {
+    return supportedFormats.contains(format)
+  }
+
 
     @ReactMethod
     fun createJobAndSendDocument(printerUrl: String, jobName: String, document: String, promise: Promise) {
