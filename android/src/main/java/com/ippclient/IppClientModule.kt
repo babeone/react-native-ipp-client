@@ -4,15 +4,17 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
-import com.github.gmuth.ipp.client.IppClient
-import com.github.gmuth.ipp.client.IppPrinter
-import com.github.gmuth.ipp.core.DocumentFormat
-import com.github.gmuth.ipp.core.Media
-import com.github.gmuth.ipp.core.PrintQuality
-import com.github.gmuth.ipp.core.Sides
+import de.gmuth.ipp.client.IppPrinter
+import de.gmuth.ipp.client.IppClient
+import de.gmuth.ipp.client.IppTemplateAttributes.documentFormat
+import de.gmuth.ipp.client.IppTemplateAttributes.jobName
+import de.gmuth.ipp.client.IppWhichJobs
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
 import java.net.URI
+import java.net.URL
 import java.time.Duration
 
 class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
@@ -24,12 +26,23 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     @ReactMethod
     fun getPrinterAttributes(printerUrl: String, promise: Promise) {
         try {
-            val ippClient = IppClient()
-            val printer = IppPrinter(URI.create(printerUrl))
-            val attributes = printer.getAttributes()
+          val ippPrinter = IppPrinter(URI.create(printerUrl))
 
-            val attributesMap = attributes.map { it.name to it.value.toString() }.toMap()
-            promise.resolve(attributesMap)
+          // Retrieve printer attributes
+          val attributes = ippPrinter.attributes
+          val attributesMap = attributes.map { it.key to it.value.toString() }.toMap()
+
+          // Retrieve marker levels
+          val markers = ippPrinter.markers.map { marker ->
+            marker.name to marker.levelPercent().toString()
+          }.toMap()
+
+          // Combine attributes and markers into a single map
+          val result = mutableMapOf<String, Any>()
+          result["attributes"] = attributesMap
+          result["markers"] = markers
+
+          promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("Error", e)
         }
@@ -49,7 +62,8 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
 
     @ReactMethod
     fun printJob(printerUrl: String, jobName: String, document: String, promise: Promise) {
-        try {
+      var tempFile: File? = null
+      try {
             val ippClient = IppClient()
             val printer = IppPrinter(URI.create(printerUrl))
 
@@ -60,28 +74,20 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
             connection.connect()
 
             val inputStream = connection.inputStream
-            val tempFile = File.createTempFile("tempImage", ".jpeg")
+            tempFile = File.createTempFile("tempImage", ".jpeg")
             val outputStream = FileOutputStream(tempFile)
             inputStream.copyTo(outputStream)
             outputStream.close()
             inputStream.close()
 
-            // Read the downloaded image
-            val image = ImageIO.read(tempFile)
 
-            val width = 1016 // 101.6 mm in hundredths of a millimeter
-            val height = 2540 // 254 mm in hundredths of a millimeter
+            //val width = 1016 // 101.6 mm in hundredths of a millimeter
+            //val height = 2540 // 254 mm in hundredths of a millimeter
 
             val job = printer.printJob(
-                jpegFile,
-                jobName(jobName),
-                DocumentFormat.JPEG,
-                MediaCollection(
-                  MediaSize(1016, 2540),
-                  MediaMargin(300) // 3 mm margin
-                ),
-                PrintQuality.High,
-                Sides.TwoSidedLongEdge
+                tempFile,
+                jobName(printerUrl),
+                documentFormat("jpeg"),
             )
             promise.resolve(job.toString())
         } catch (e: Exception) {
@@ -123,7 +129,7 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
         try {
             val ippClient = IppClient()
             val printer = IppPrinter(URI.create(printerUrl))
-            val jobs = printer.getJobs(IppPrinter.WhichJobs.Completed).map { it.toString() }
+            val jobs = printer.getJobs(IppWhichJobs.Completed).map { it.toString() }
             promise.resolve(jobs)
         } catch (e: Exception) {
             promise.reject("Error", e)
@@ -183,11 +189,13 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     @ReactMethod
     fun findSupportedMediaBySize(printerUrl: String, size: String, promise: Promise) {
         try {
-            val ippClient = IppClient()
+            throw Error("NOT IMPLEMENTED METHOD")
+           /* val ippClient = IppClient()
             val printer = IppPrinter(URI.create(printerUrl))
             val mediaColDatabase = printer.getMediaColDatabase()
             val media = mediaColDatabase.findMediaBySize(Media.Size.valueOf(size))
             promise.resolve(media.toString())
+            */
         } catch (e: Exception) {
             promise.reject("Error", e)
         }
@@ -196,10 +204,14 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     @ReactMethod
     fun checkMediaSizeSupport(printerUrl: String, size: String, promise: Promise) {
         try {
+          throw Error("NOT IMPLEMENTED METHOD")
+          /*
             val ippClient = IppClient()
             val printer = IppPrinter(URI.create(printerUrl))
             val isSupported = printer.isMediaSizeSupported(Media.Size.valueOf(size))
             promise.resolve(isSupported)
+
+           */
         } catch (e: Exception) {
             promise.reject("Error", e)
         }
@@ -208,10 +220,14 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     @ReactMethod
     fun checkMediaSizeReady(printerUrl: String, size: String, promise: Promise) {
         try {
+          throw Error("NOT IMPLEMENTED METHOD")
+          /*
             val ippClient = IppClient()
             val printer = IppPrinter(URI.create(printerUrl))
             val isReady = printer.isMediaSizeReady(Media.Size.valueOf(size))
             promise.resolve(isReady)
+
+           */
         } catch (e: Exception) {
             promise.reject("Error", e)
         }
@@ -220,10 +236,14 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     @ReactMethod
     fun getSourcesOfMediaSizeReady(printerUrl: String, size: String, promise: Promise) {
         try {
+          throw Error("NOT IMPLEMENTED METHOD")
+          /*
             val ippClient = IppClient()
             val printer = IppPrinter(URI.create(printerUrl))
             val sources = printer.sourcesOfMediaSizeReady(Media.Size.valueOf(size))
             promise.resolve(sources.toString())
+
+           */
         } catch (e: Exception) {
             promise.reject("Error", e)
         }
