@@ -1,5 +1,7 @@
 package com.ippclient
 
+import android.print.PrintAttributes.MediaSize
+import android.print.PrintAttributes.MediaSize.ISO_A4
 import android.util.Log
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactApplicationContext
@@ -9,9 +11,17 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.WritableMap
 import de.gmuth.ipp.client.IppPrinter
 import de.gmuth.ipp.client.IppClient
+import de.gmuth.ipp.client.IppTemplateAttributes.copies
 import de.gmuth.ipp.client.IppTemplateAttributes.documentFormat
 import de.gmuth.ipp.client.IppTemplateAttributes.jobName
+import de.gmuth.ipp.client.IppTemplateAttributes.jobPriority
+import de.gmuth.ipp.client.IppTemplateAttributes.numberUp
+import de.gmuth.ipp.client.IppTemplateAttributes.printerResolution
 import de.gmuth.ipp.client.IppWhichJobs
+import de.gmuth.ipp.core.IppAttribute
+import de.gmuth.ipp.core.IppAttributeBuilder
+import de.gmuth.ipp.core.IppResolution
+import de.gmuth.ipp.core.IppTag
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -111,11 +121,18 @@ class IppClientModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
         return
       }
 
+
+      // Build job attributes
+      val jobNameAttribute = IppAttribute("job-name", IppTag.NameWithoutLanguage, jobName)
+      val documentFormatAttribute = IppAttribute("document-format", IppTag.MimeMediaType, mimeType)
+      val mediaSizeAttribute = IppAttribute("media", IppTag.Keyword, "na_index-4x6_4x6in")
+
       // Print the job
       val job = printer.printJob(
         tempFile,
-        jobName(jobName),
-        documentFormat(mimeType),
+        jobNameAttribute,
+        documentFormatAttribute,
+        mediaSizeAttribute
       )
       promise.resolve(job.toString())
     } catch (e: Exception) {
